@@ -7,6 +7,11 @@ module.exports = {
   ],
   theme: {
   	extend: {
+                fontFamily: {
+                        heading: ['Chivo', 'sans-serif'],
+                        body: ['Manrope', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                },
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -70,11 +75,31 @@ module.exports = {
   				to: {
   					height: '0'
   				}
+                        },
+                        'scan-pulse': {
+                                '0%, 100%': {
+                                        boxShadow: '0 0 0 rgba(0, 224, 150, 0.0)'
+                                },
+                                '50%': {
+                                        boxShadow: '0 0 14px rgba(0, 224, 150, 0.32)'
+                                }
+                        },
+                        'slide-in-right': {
+                                from: {
+                                        opacity: '0',
+                                        transform: 'translateX(20px)'
+                                },
+                                to: {
+                                        opacity: '1',
+                                        transform: 'translateX(0)'
+                                }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+                        'accordion-up': 'accordion-up 0.2s ease-out',
+                        'scan-pulse': 'scan-pulse 2.6s ease-in-out infinite',
+                        'slide-in-right': 'slide-in-right 0.3s ease-out'
   		}
   	}
   },
