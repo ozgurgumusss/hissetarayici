@@ -92,7 +92,7 @@ class PatternMatch(BaseModel):
     direction: str
     confirmed: bool
     neckline: float | None = None
-    points: list[str] = []
+    points: list[str] = Field(default_factory=list)
     volume_validated: bool = False
     detail: str
 
@@ -124,7 +124,7 @@ class FundamentalSnapshot(BaseModel):
     debt_to_equity: float | None = None
     eps_growth_qoq: float | None = None
     score: int = 0
-    notes: list[str] = []
+    notes: list[str] = Field(default_factory=list)
 
 
 class RiskLevels(BaseModel):
