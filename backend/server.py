@@ -1815,7 +1815,18 @@ async def analyze_and_store_symbol(
     include_ai_summary: bool = True,
     include_pattern_image: bool = True,
     force_live_data: bool = False,
+    prefer_stream_consistency: bool = False,
 ) -> dict:
+    existing_document = await fetch_signal_document(symbol_input)
+    if prefer_stream_consistency and existing_document and isinstance(existing_document.get("updated_at"), str):
+        try:
+            updated = datetime.fromisoformat(existing_document["updated_at"])
+            age_seconds = (datetime.now(timezone.utc) - updated).total_seconds()
+            if age_seconds <= SCAN_INTERVAL_SECONDS:
+                return existing_document
+        except ValueError:
+            pass
+
     symbol, market, raw_df = await resolve_symbol_and_market(symbol_input)
     if symbol is None or raw_df is None or market is None:
         raise HTTPException(status_code=404, detail="Sembol için veri bulunamadı")
@@ -2151,6 +2162,7 @@ async def analyze_symbol_on_demand(symbol: str):
         include_ai_summary=True,
         include_pattern_image=True,
         force_live_data=True,
+        prefer_stream_consistency=True,
     )
     return sanitize_for_json(analyzed)
 
@@ -2169,7 +2181,8 @@ async def reanalyze_signal(symbol: str):
         symbol,
         include_ai_summary=True,
         include_pattern_image=True,
-        force_live_data=True,
+        force_live_data=False,
+        prefer_stream_consistency=True,
     )
     return sanitize_for_json(analyzed)
 

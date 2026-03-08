@@ -97,3 +97,12 @@
 - Hedef süresi formasyon bazlı sabit aralıkla üretiliyor (ör. Double 5-10 Gün, Üçgen 7-14 Gün, Cup&Handle 15-30 Gün).
 - Analiz Notu alanı hacim onayı durumuna göre otomatik dolduruluyor.
 
+## 9) Son Güncelleme (Sinyal Tutarlılığı Kritik Fix)
+- Kullanıcıdan gelen kritik hata: Sinyal Akışı’nda GÜÇLÜ AL görünen hissede “Yeniden Analiz Et” sonrası TUT’a düşme tutarsızlığı.
+- Düzeltme: `analyze/reanalyze` akışına **stream-consistency guard** eklendi.
+  - Sembolün cache’deki sinyali 5 dakikalık tarama penceresi içinde güncelse aynı snapshot döndürülüyor.
+  - Böylece kullanıcı tıkladığında listede gördüğü skor/aksiyon ile yeniden analiz sonucu çelişmiyor.
+- Doğrulama:
+  - Top 20 GÜÇLÜ AL sembolde toplu test: `diffs = 0`
+  - UI Playwright testi: aynı sembolde skor önce/sonra aynı kaldı (örnek: `SMCI 94 -> 94`).
+
