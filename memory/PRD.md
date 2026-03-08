@@ -69,3 +69,20 @@
 3. Pattern chart’ta neckline ve kırılım anı için görsel annotation katmanı ekle.
 4. Backend kodunu modüllere ayırıp bakım maliyetini düşür.
 
+## 7) Son Güncelleme (Hisse Tarayıcı Onarım + Genişletme)
+- Rebranding tamamlandı: başlık **Hisse Tarayıcı** ve yeni profesyonel alt açıklama metni uygulandı.
+- Kritik senkronizasyon düzeltmesi: `POST /api/signals/analyze/{symbol}` ve `POST /api/signals/{symbol}/reanalyze` artık canlı veriyi zorlayarak (force live fundamentals) aynı `build_signal` hattıyla hesap yapıyor; listede aksiyon tutarlılığı güçlendirildi.
+- Hedef fiyat yön güvenliği: görselde kullanılan hedef fiyat artık aksiyon yönüyle matematiksel olarak zorunlu uyumlu (AL/GÜÇLÜ AL için yukarı, SAT/GÜÇLÜ SAT için aşağı).
+- Yön çelişkisi hotfix: bullish aksiyonda bearish formasyon görseli seçilmesini engelleyen direction-aware pattern seçimi eklendi; uyumsuzsa görsel üretilmiyor/temizleniyor.
+- UI genişletmeleri:
+  - Sinyal akışı üstüne **Liste içi filtrele/ara** kutusu
+  - Formasyon görselinde **Görseli Büyüt** (fullscreen modal)
+  - Formasyon görselinde **Görseli Tekrar Oluştur** butonu
+  - AI panelinde sekmeli yapı: **Özet** + **Detaylı Bak**
+- Derin analiz alanları:
+  - Teknik: Bollinger, Stokastik, ADX, Ichimoku
+  - Temel: ROE, Borç/Özsermaye, Net Kar Marjı, Temettü Verimi
+- Hacim modülü:
+  - Kırılım hacmi > 20g ortalama *1.2 ise skor bonusu + “Hacim Onaylı Kırılım” notu
+  - AI raporuna **Hacim Durumu** başlığı eklendi.
+

@@ -1011,6 +1011,14 @@ def is_strong_action(action: str) -> bool:
     return action in {"GÜÇLÜ AL", "GÜÇLÜ SAT"}
 
 
+def action_to_direction(action: str) -> str:
+    if action in {"AL", "GÜÇLÜ AL"}:
+        return "bullish"
+    if action in {"SAT", "GÜÇLÜ SAT"}:
+        return "bearish"
+    return "neutral"
+
+
 def select_visual_pattern(action: str, patterns: list[dict]) -> dict | None:
     confirmed = [pattern for pattern in patterns if pattern.get("confirmed")]
     if not confirmed:
@@ -1019,13 +1027,24 @@ def select_visual_pattern(action: str, patterns: list[dict]) -> dict | None:
     bullish_priority = ["Cup and Handle", "Double Bottom", "Inverse Head and Shoulders", "Symmetrical Triangle"]
     bearish_priority = ["Double Top", "Head and Shoulders", "Symmetrical Triangle"]
 
-    priorities = bullish_priority if action == "GÜÇLÜ AL" else bearish_priority
+    expected_direction = action_to_direction(action)
+    if expected_direction == "bullish":
+        candidates = [pattern for pattern in confirmed if pattern.get("direction") == "bullish"]
+    elif expected_direction == "bearish":
+        candidates = [pattern for pattern in confirmed if pattern.get("direction") == "bearish"]
+    else:
+        candidates = confirmed
+
+    if not candidates:
+        return None
+
+    priorities = bullish_priority if expected_direction == "bullish" else bearish_priority
     for candidate_name in priorities:
-        for pattern in confirmed:
+        for pattern in candidates:
             if pattern.get("name") == candidate_name:
                 return pattern
 
-    return confirmed[0]
+    return candidates[0]
 
 
 def sanitize_symbol(symbol: str) -> str:
@@ -1826,8 +1845,13 @@ async def run_scan(trigger: str = "scheduler") -> dict:
                     doc["ai_summary"] = existing.get("ai_summary")
                     doc["ai_summary_updated_at"] = existing.get("ai_summary_updated_at")
 
-                doc["pattern_image_url"] = existing.get("pattern_image_url")
-                doc["pattern_image_updated_at"] = existing.get("pattern_image_updated_at")
+                compatible_pattern = select_visual_pattern(doc.get("action", ""), doc.get("patterns", []))
+                if compatible_pattern:
+                    doc["pattern_image_url"] = existing.get("pattern_image_url")
+                    doc["pattern_image_updated_at"] = existing.get("pattern_image_updated_at")
+                else:
+                    doc["pattern_image_url"] = None
+                    doc["pattern_image_updated_at"] = None
 
             operations = [
                 UpdateOne({"symbol": doc["symbol"]}, {"$set": doc}, upsert=True)
@@ -2060,6 +2084,8 @@ async def auto_enrich_signal(symbol: str):
     should_refresh_summary = not document.get("ai_summary")
     if document.get("pattern_image_url") and document.get("ai_summary"):
         should_refresh_summary = document["pattern_image_url"] not in document["ai_summary"]
+    if image_url is None and document.get("ai_summary") and "Formasyon görseli:" in document["ai_summary"]:
+        should_refresh_summary = True
 
     if should_refresh_summary:
         summary = await generate_ai_summary(document)
@@ -2090,10 +2116,9 @@ async def explain_signal(symbol: str):
     update_payload = {
         "ai_summary": summary,
         "ai_summary_updated_at": now_iso(),
+        "pattern_image_url": image_url,
+        "pattern_image_updated_at": now_iso(),
     }
-    if image_url:
-        update_payload["pattern_image_url"] = image_url
-        update_payload["pattern_image_updated_at"] = now_iso()
 
     await signals_collection.update_one({"symbol": document["symbol"]}, {"$set": update_payload})
     return {
