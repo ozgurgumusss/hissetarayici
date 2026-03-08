@@ -1,4 +1,4 @@
-import { Activity, RefreshCw, Play } from "lucide-react";
+import { Activity, RefreshCw, Search, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,14 +10,16 @@ const toTestId = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").repl
 export const DashboardControls = ({
   market,
   action,
-  search,
+  symbolInput,
   scannerState,
   onMarketChange,
   onActionChange,
-  onSearchChange,
-  onManualScan,
-  onReload,
+  onSymbolInputChange,
+  onAnalyzeSymbol,
+  onRefreshAll,
   loading,
+  analyzing,
+  refreshCooldown,
 }) => {
   const lastRun = scannerState?.last_run
     ? new Date(scannerState.last_run).toLocaleString("tr-TR")
@@ -38,23 +40,20 @@ export const DashboardControls = ({
 
           <div className="flex flex-wrap items-center gap-2" data-testid="dashboard-actions-row">
             <Button
-              variant="outline"
-              className="rounded-sm border-border bg-transparent"
-              onClick={onReload}
-              disabled={loading}
-              data-testid="dashboard-refresh-signals-button"
+              className="rounded-sm bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={onRefreshAll}
+              disabled={Boolean(refreshCooldown) || loading}
+              data-testid="dashboard-refresh-all-button"
             >
-              <RefreshCw className="h-4 w-4" />
-              Listeyi Yenile
+              <RotateCcw className="h-4 w-4" />
+              {refreshCooldown ? `Verileri Güncelle (${refreshCooldown}s)` : "Verileri Güncelle"}
             </Button>
             <Button
-              className="rounded-sm bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={onManualScan}
-              data-testid="dashboard-run-manual-scan-button"
-            >
-              <Play className="h-4 w-4" />
-              Manuel Tarama
-            </Button>
+              variant="outline"
+              className="rounded-sm border-border bg-transparent"
+              onClick={() => window.location.reload()}
+              data-testid="dashboard-hard-reload-button"
+            ><RefreshCw className="h-4 w-4" />Sayfayı Yenile</Button>
           </div>
         </div>
 
@@ -99,15 +98,31 @@ export const DashboardControls = ({
 
           <div className="lg:col-span-3" data-testid="symbol-search-section">
             <p className="mb-1 text-xs font-bold uppercase tracking-wider text-muted-foreground" data-testid="symbol-search-label">
-              Hisse Ara
+              İstek Üzerine Analiz
             </p>
-            <Input
-              value={search}
-              placeholder="AAPL, THYAO..."
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="h-8 rounded-sm border-border bg-input/60 font-mono"
-              data-testid="symbol-search-input"
-            />
+            <div className="flex gap-2">
+              <Input
+                value={symbolInput}
+                placeholder="Örn: RIVN, PENTA, THYAO"
+                onChange={(event) => onSymbolInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    onAnalyzeSymbol();
+                  }
+                }}
+                className="h-8 rounded-sm border-border bg-input/60 font-mono"
+                data-testid="symbol-search-input"
+              />
+              <Button
+                variant="outline"
+                className="h-8 rounded-sm border-border px-3"
+                onClick={onAnalyzeSymbol}
+                disabled={analyzing || !symbolInput.trim()}
+                data-testid="symbol-search-analyze-button"
+              >
+                <Search className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 

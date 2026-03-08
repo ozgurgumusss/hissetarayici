@@ -6,11 +6,14 @@ import { SignalDetailSheet } from "@/components/dashboard/SignalDetailSheet";
 import { SignalStream } from "@/components/dashboard/SignalStream";
 import { TradingViewPanel } from "@/components/dashboard/TradingViewPanel";
 import {
+  autoEnrichSignal,
+  analyzeSymbolOnDemand,
   explainSignal,
   fetchConfig,
   fetchScannerState,
   fetchSignalDetail,
   fetchSignals,
+  reanalyzeSignal,
   runScanner,
 } from "@/services/signalApi";
 
@@ -31,10 +34,12 @@ export default function DashboardPage() {
   const [loadingSignals, setLoadingSignals] = useState(false);
   const [market, setMarket] = useState("ALL");
   const [action, setAction] = useState("ALL");
-  const [search, setSearch] = useState("");
+  const [symbolInput, setSymbolInput] = useState("");
   const [selectedSymbol, setSelectedSymbol] = useState("");
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [explaining, setExplaining] = useState(false);
+  const [analyzingSymbol, setAnalyzingSymbol] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   const loadScannerState = useCallback(async () => {
     try {
@@ -48,7 +53,7 @@ export default function DashboardPage() {
   const loadSignals = useCallback(async () => {
     setLoadingSignals(true);
     try {
-      const data = await fetchSignals({ market, action, search, limit: 220 });
+      const data = await fetchSignals({ market, action, limit: 1100 });
       setSignals(data);
       setSelectedSymbol((previousSymbol) => {
         if (data.length === 0) {
@@ -65,7 +70,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingSignals(false);
     }
-  }, [market, action, search]);
+  }, [market, action]);
 
   const selectedSignal = useMemo(
     () => signals.find((item) => item.symbol === selectedSymbol) || null,
@@ -86,17 +91,73 @@ export default function DashboardPage() {
   const handleSignalSelect = async (symbol) => {
     setSelectedSymbol(symbol);
     setIsDetailOpen(true);
-    await loadSignalDetail(symbol);
+    const detail = await loadSignalDetail(symbol);
+
+    if (detail) {
+      try {
+        setExplaining(true);
+        await autoEnrichSignal(symbol);
+        await loadSignalDetail(symbol);
+      } catch (error) {
+        console.error(error);
+        toast.error("Formasyon görseli otomatik üretilemedi.");
+      } finally {
+        setExplaining(false);
+      }
+    }
   };
 
-  const handleManualScan = async () => {
+  const handleAnalyzeSymbol = async () => {
+    if (!symbolInput.trim()) {
+      return;
+    }
+
+    setAnalyzingSymbol(true);
+    try {
+      const analyzed = await analyzeSymbolOnDemand(symbolInput.trim().toUpperCase());
+      setMarket("ALL");
+      setAction("ALL");
+      setSignals((previous) => replaceSignal(previous, analyzed));
+      setSelectedSymbol(analyzed.symbol);
+      setIsDetailOpen(true);
+      setSymbolInput(analyzed.symbol);
+      toast.success(`${analyzed.symbol} için anlık analiz üretildi.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Sembol analiz edilemedi.");
+    } finally {
+      setAnalyzingSymbol(false);
+    }
+  };
+
+  const handleRefreshAll = async () => {
+    if (refreshCooldown > 0) {
+      return;
+    }
     try {
       const result = await runScanner();
       toast.success(result.message || "Tarama tetiklendi.");
+      setRefreshCooldown(30);
+      await loadSignals();
       await loadScannerState();
     } catch (error) {
       console.error(error);
-      toast.error("Manuel tarama başlatılamadı.");
+      toast.error("Veri güncelleme başlatılamadı.");
+    }
+  };
+
+  const handleReanalyze = async (symbol) => {
+    setExplaining(true);
+    try {
+      const updated = await reanalyzeSignal(symbol);
+      setSignals((previous) => replaceSignal(previous, updated));
+      setSelectedSymbol(updated.symbol);
+      toast.success(`${updated.symbol} yeniden analiz edildi.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Yeniden analiz başarısız oldu.");
+    } finally {
+      setExplaining(false);
     }
   };
 
@@ -140,6 +201,16 @@ export default function DashboardPage() {
   }, [loadSignals]);
 
   useEffect(() => {
+    if (refreshCooldown <= 0) {
+      return;
+    }
+    const timer = setInterval(() => {
+      setRefreshCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refreshCooldown]);
+
+  useEffect(() => {
     const refreshMillis = (config?.refresh_seconds || 300) * 1000;
     const refreshInterval = setInterval(() => {
       loadSignals();
@@ -158,18 +229,20 @@ export default function DashboardPage() {
   }, [loadScannerState]);
 
   return (
-    <main className="dashboard-shell space-y-4 p-4 md:p-6" data-testid="dashboard-page-main">
+    <main className="dashboard-shell space-y-4 p-4 pb-20 md:p-6 md:pb-24" data-testid="dashboard-page-main">
       <DashboardControls
         market={market}
         action={action}
-        search={search}
+        symbolInput={symbolInput}
         scannerState={scannerState}
         onMarketChange={setMarket}
         onActionChange={setAction}
-        onSearchChange={setSearch}
-        onManualScan={handleManualScan}
-        onReload={loadSignals}
+        onSymbolInputChange={setSymbolInput}
+        onAnalyzeSymbol={handleAnalyzeSymbol}
+        onRefreshAll={handleRefreshAll}
         loading={loadingSignals}
+        analyzing={analyzingSymbol}
+        refreshCooldown={refreshCooldown}
       />
 
       <section className="grid grid-cols-12 gap-4" data-testid="dashboard-main-grid">
@@ -197,7 +270,15 @@ export default function DashboardPage() {
         explaining={explaining}
         onOpenChange={setIsDetailOpen}
         onExplain={handleExplain}
+        onReanalyze={handleReanalyze}
       />
+
+      <footer
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-border/70 bg-background/90 px-4 py-2 text-center text-xs text-zinc-400 backdrop-blur-md"
+        data-testid="legal-disclaimer-footer"
+      >
+        YASAL UYARI: Bu platformda sunulan veriler ve yapay zeka sinyalleri yatırım tavsiyesi değildir. Yatırım kararlarınızı lisanslı danışmanlar eşliğinde veriniz.
+      </footer>
     </main>
   );
 }

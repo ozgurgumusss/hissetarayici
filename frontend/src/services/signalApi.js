@@ -41,3 +41,23 @@ export const explainSignal = async (symbol) => {
   const { data } = await apiClient.post(`/signals/${symbol}/explain`);
   return data;
 };
+
+export const autoEnrichSignal = async (symbol) => {
+  const { data } = await apiClient.post(`/signals/${symbol}/auto-enrich`);
+  return data;
+};
+
+export const generateSignalVisualization = async (symbol) => {
+  const { data } = await apiClient.post(`/signals/${symbol}/visualize`);
+  return data;
+};
+
+export const analyzeSymbolOnDemand = async (symbol) => {
+  const { data } = await apiClient.post(`/signals/analyze/${symbol}`);
+  return data;
+};
+
+export const reanalyzeSignal = async (symbol) => {
+  const { data } = await apiClient.post(`/signals/${symbol}/reanalyze`);
+  return data;
+};

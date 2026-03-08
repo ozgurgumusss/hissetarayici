@@ -3,12 +3,28 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+
 const patternClass = (direction) =>
   direction === "bullish"
     ? "border-primary/40 bg-primary/15 text-primary"
     : "border-destructive/40 bg-destructive/15 text-destructive";
 
-export const SignalDetailSheet = ({ open, signal, explaining, onOpenChange, onExplain }) => {
+const resolvePatternImageUrl = (rawUrl) => {
+  if (!rawUrl) {
+    return null;
+  }
+  if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+    return rawUrl;
+  }
+  const normalized = rawUrl.startsWith("/") ? rawUrl : `/${rawUrl}`;
+  return `${BACKEND_URL}${normalized}`;
+};
+
+export const SignalDetailSheet = ({ open, signal, explaining, onOpenChange, onExplain, onReanalyze }) => {
+  const imageUrl = resolvePatternImageUrl(signal?.pattern_image_url);
+  const isStrongSignal = signal?.action === "GÜÇLÜ AL" || signal?.action === "GÜÇLÜ SAT";
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -29,7 +45,40 @@ export const SignalDetailSheet = ({ open, signal, explaining, onOpenChange, onEx
               <SheetDescription className="text-sm text-muted-foreground" data-testid="signal-detail-subtitle">
                 Karar: {signal.action} · Bullish Score: {signal.bullish_score}
               </SheetDescription>
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  className="rounded-sm border-border"
+                  onClick={() => onReanalyze(signal.symbol)}
+                  disabled={explaining}
+                  data-testid="signal-detail-reanalyze-button"
+                >
+                  {explaining ? "Yeniden analiz ediliyor..." : "Yeniden Analiz Et"}
+                </Button>
+              </div>
             </SheetHeader>
+
+            <section className="space-y-2" data-testid="signal-detail-pattern-image-section">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground" data-testid="signal-detail-pattern-image-title">
+                Formasyon Onay Görseli
+              </h3>
+              {imageUrl ? (
+                <div className="overflow-hidden rounded-sm border border-border/70 bg-card/50" data-testid="signal-detail-pattern-image-wrapper">
+                  <img
+                    src={imageUrl}
+                    alt={`${signal.symbol} formasyon görseli`}
+                    className="h-auto w-full object-contain"
+                    data-testid="signal-detail-pattern-image"
+                  />
+                </div>
+              ) : (
+                <div className="rounded-sm border border-dashed border-border/70 bg-card/40 p-3 text-xs text-muted-foreground" data-testid="signal-detail-pattern-image-empty-state">
+                  {isStrongSignal
+                    ? "Güçlü sinyal için formasyon görseli hazırlanıyor."
+                    : "Bu sembolde statik formasyon görseli yalnızca GÜÇLÜ AL/GÜÇLÜ SAT sinyallerinde üretilir."}
+                </div>
+              )}
+            </section>
 
             <div className="flex flex-wrap gap-2" data-testid="signal-detail-pattern-badges">
               {(signal.patterns || []).map((pattern, index) => (

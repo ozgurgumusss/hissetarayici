@@ -116,19 +116,15 @@ export const PatternChartPanel = ({ signal }) => {
           </CardHeader>
           <CardContent className="space-y-3 p-4 pt-2 text-sm">
             <div data-testid="score-breakdown-technical-row">
-              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Teknik Kırılım</span><span>{breakdown.technical || 0}/30</span></div>
-              <Progress value={((breakdown.technical || 0) / 30) * 100} className="h-2 rounded-sm" />
-            </div>
-            <div data-testid="score-breakdown-moving-average-row">
-              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Hareketli Ortalama</span><span>{breakdown.moving_average || 0}/20</span></div>
-              <Progress value={((breakdown.moving_average || 0) / 20) * 100} className="h-2 rounded-sm" />
+              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Teknik (%40)</span><span>{breakdown.technical || 0}/40</span></div>
+              <Progress value={((breakdown.technical || 0) / 40) * 100} className="h-2 rounded-sm" />
             </div>
             <div data-testid="score-breakdown-volume-row">
-              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Hacim Onayı</span><span>{breakdown.volume || 0}/20</span></div>
-              <Progress value={((breakdown.volume || 0) / 20) * 100} className="h-2 rounded-sm" />
+              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Hacim Onayı (%30)</span><span>{breakdown.volume || 0}/30</span></div>
+              <Progress value={((breakdown.volume || 0) / 30) * 100} className="h-2 rounded-sm" />
             </div>
             <div data-testid="score-breakdown-fundamental-row">
-              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Temel Analiz</span><span>{breakdown.fundamental || 0}/30</span></div>
+              <div className="mb-1 flex justify-between text-xs text-muted-foreground"><span>Temel Analiz (%30)</span><span>{breakdown.fundamental || 0}/30</span></div>
               <Progress value={((breakdown.fundamental || 0) / 30) * 100} className="h-2 rounded-sm" />
             </div>
           </CardContent>
