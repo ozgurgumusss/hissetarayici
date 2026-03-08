@@ -1,0 +1,44 @@
+{
+  "summary": "Excel dışa aktarma akışı public URL üzerinden backend+frontend e2e test edildi. Modal, checkboxlar ve .xlsx indirme çalışıyor; ancak Excel kolon isimleri beklenen sözleşmeyle uyuşmuyor.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/signals/export/excel",
+        "issue": "Excel kolonları gereksinimdeki tam adlarla dönmüyor. Beklenen: 'Take Profit', 'Stop Loss'; Gerçek: 'Take Profit (Kâr Al)', 'Stop Loss (Zarar Kes)'.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_excel_export.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "server.py export_signals_excel içinde kolon başlıklarını gereksinimdeki exact sözleşmeye çek: Take Profit, Stop Loss.",
+    "Düzeltme sonrası /app/backend/tests/test_excel_export.py yeniden çalıştırılarak regresyon doğrulansın.",
+    "UI üzerinden modal > filtre > Dosyayı Oluştur akışı tekrar e2e retest edilsin."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py içinde export kolon adları ile ürün gereksinimi arasında contract drift var (line ~2112-2123).",
+    "backend/server.py dosyası hala çok büyük (2000+ satır), route/service ayrıştırması test edilebilirliği artırır."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_excel_export.py",
+    "/app/test_reports/iteration_3.json"
+  ],
+  "success_rate": {
+    "backend": "67%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "Yok",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Pytest: 3 testten 2 geçti, 1 fail (kolon isim uyumsuzluğu). UI tarafında export butonu görünür, modal açılıyor, NASDAQ/BIST + 5 sinyal checkbox present, Dosyayı Oluştur sinyal_raporu.xlsx indiriyor.",
+  "rca of the issue": "Kök neden: /api/signals/export/excel içinde dataframe kolonları backend’de 'Take Profit (Kâr Al)' ve 'Stop Loss (Zarar Kes)' olarak hardcode edilmiş. Gereksinim sözleşmesi ise sade başlıklar ('Take Profit', 'Stop Loss') istiyor. Bu nedenle schema assertion fail ediyor. Filtreleme altkümesi testi (NASDAQ+AL) geçti; problem veri filtreleme değil, başlık contract uyumsuzluğu."
+}

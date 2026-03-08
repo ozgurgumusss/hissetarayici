@@ -61,3 +61,12 @@ export const reanalyzeSignal = async (symbol) => {
   const { data } = await apiClient.post(`/signals/${symbol}/reanalyze`);
   return data;
 };
+
+export const exportSignalsExcel = async ({ markets, actions }) => {
+  const response = await apiClient.post(
+    "/signals/export/excel",
+    { markets, actions },
+    { responseType: "blob" },
+  );
+  return response.data;
+};

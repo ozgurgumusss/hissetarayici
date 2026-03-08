@@ -14,7 +14,7 @@ const ACTION_CLASS_MAP = {
 
 const toTestId = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-export const SignalStream = ({ signals, selectedSymbol, onSelect, loading }) => {
+export const SignalStream = ({ signals, selectedSymbol, onSelect, loading, onOpenExportModal }) => {
   const [localQuery, setLocalQuery] = useState("");
 
   const filteredSignals = useMemo(() => {
@@ -29,9 +29,19 @@ export const SignalStream = ({ signals, selectedSymbol, onSelect, loading }) => 
     <Card className="h-full border-border/70 bg-card/45 backdrop-blur-md" data-testid="signal-stream-card">
       <CardHeader className="border-b border-border/60 p-4">
         <div className="space-y-2">
-          <CardTitle className="text-lg font-bold" data-testid="signal-stream-title">
-            Sinyal Akışı
-          </CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <CardTitle className="text-lg font-bold" data-testid="signal-stream-title">
+              Sinyal Akışı
+            </CardTitle>
+            <Button
+              variant="outline"
+              className="h-8 rounded-sm border-border px-3 text-xs"
+              onClick={onOpenExportModal}
+              data-testid="signal-stream-export-excel-button"
+            >
+              Verileri Dışa Aktar (Excel)
+            </Button>
+          </div>
           <Input
             value={localQuery}
             onChange={(event) => setLocalQuery(event.target.value)}

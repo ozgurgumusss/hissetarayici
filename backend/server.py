@@ -1,4 +1,5 @@
 import asyncio
+import io
 import json
 import logging
 import math
@@ -23,6 +24,7 @@ from yfinance import EquityQuery
 from dotenv import load_dotenv
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, Field
@@ -226,6 +228,11 @@ class ScannerState(BaseModel):
     last_error: str | None = None
     last_duration_seconds: float | None = None
     last_scanned_count: int = 0
+
+
+class ExportFilterRequest(BaseModel):
+    markets: list[str] = Field(default_factory=list)
+    actions: list[str] = Field(default_factory=list)
 
 
 scan_state = ScannerState(running=False)
@@ -1005,6 +1012,44 @@ def enforce_directional_target(signal_doc: dict, target_price: float | None) -> 
         max_target = last_price - (3.0 * atr if atr is not None else last_price * 0.01)
         return min(target_price, max_target)
     return target_price
+
+
+def estimate_target_duration(patterns: list[dict], action: str) -> str:
+    confirmed = [pattern for pattern in patterns if pattern.get("confirmed")]
+    if not confirmed:
+        return "7-14 Gün"
+
+    primary = confirmed[0].get("name", "")
+    mapping = {
+        "Double Top": "5-10 Gün",
+        "Double Bottom": "5-10 Gün",
+        "Head and Shoulders": "10-20 Gün",
+        "Inverse Head and Shoulders": "10-20 Gün",
+        "Symmetrical Triangle": "7-14 Gün",
+        "Cup and Handle": "15-30 Gün",
+    }
+    if primary in mapping:
+        return mapping[primary]
+
+    return "5-10 Gün" if action in {"AL", "GÜÇLÜ AL"} else "7-14 Gün"
+
+
+def signal_label(action: str) -> str:
+    mapping = {
+        "GÜÇLÜ AL": "Güçlü Al",
+        "AL": "Al",
+        "TUT": "Tut",
+        "SAT": "Sat",
+        "GÜÇLÜ SAT": "Güçlü Sat",
+    }
+    return mapping.get(action, action)
+
+
+def build_export_note(signal_doc: dict) -> str:
+    volume = signal_doc.get("volume_analysis", {})
+    if volume.get("volume_confirmed_breakout"):
+        return "Hacim onaylı kırılım"
+    return "Hacim onayı zayıf"
 
 
 def is_strong_action(action: str) -> bool:
@@ -2022,6 +2067,81 @@ async def get_signals(
         .to_list(limit)
     )
     return [sanitize_for_json(doc) for doc in docs]
+
+
+@api_router.post("/signals/export/excel")
+async def export_signals_excel(filters: ExportFilterRequest):
+    market_map = {"NASDAQ": "US", "US": "US", "BIST": "BIST"}
+    action_map = {
+        "GÜÇLÜ AL": "GÜÇLÜ AL",
+        "GÜÇLÜAL": "GÜÇLÜ AL",
+        "GUÇLÜ AL": "GÜÇLÜ AL",
+        "GÜÇLÜ SAT": "GÜÇLÜ SAT",
+        "GÜÇLÜSAT": "GÜÇLÜ SAT",
+        "GUÇLÜ SAT": "GÜÇLÜ SAT",
+        "AL": "AL",
+        "TUT": "TUT",
+        "SAT": "SAT",
+    }
+
+    selected_markets = [market_map.get(str(item).upper(), None) for item in filters.markets]
+    selected_markets = [item for item in selected_markets if item in {"US", "BIST"}]
+
+    selected_actions = []
+    for item in filters.actions:
+        normalized = str(item).upper().strip()
+        mapped = action_map.get(normalized)
+        if mapped:
+            selected_actions.append(mapped)
+
+    query: dict[str, Any] = {}
+    if selected_markets:
+        query["market"] = {"$in": selected_markets}
+    if selected_actions:
+        query["action"] = {"$in": selected_actions}
+
+    docs = await signals_collection.find(query, {"_id": 0}).sort([("bullish_score", -1), ("updated_at", -1)]).to_list(5000)
+
+    rows: list[dict[str, Any]] = []
+    for doc in docs:
+        rows.append(
+            {
+                "Hisse Kodu": doc.get("symbol"),
+                "Mevcut Sinyal": signal_label(str(doc.get("action", ""))),
+                "Hedef Süresi": estimate_target_duration(doc.get("patterns", []), str(doc.get("action", ""))),
+                "Take Profit (Kâr Al)": (doc.get("risk") or {}).get("take_profit"),
+                "Stop Loss (Zarar Kes)": (doc.get("risk") or {}).get("stop_loss"),
+                "Analiz Notu": build_export_note(doc),
+            }
+        )
+
+    columns = [
+        "Hisse Kodu",
+        "Mevcut Sinyal",
+        "Hedef Süresi",
+        "Take Profit (Kâr Al)",
+        "Stop Loss (Zarar Kes)",
+        "Analiz Notu",
+    ]
+    dataframe = pd.DataFrame(rows, columns=columns)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        dataframe.to_excel(writer, index=False, sheet_name="Sinyaller")
+        worksheet = writer.sheets["Sinyaller"]
+        worksheet.column_dimensions["A"].width = 16
+        worksheet.column_dimensions["B"].width = 16
+        worksheet.column_dimensions["C"].width = 14
+        worksheet.column_dimensions["D"].width = 18
+        worksheet.column_dimensions["E"].width = 20
+        worksheet.column_dimensions["F"].width = 36
+
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="sinyal_raporu.xlsx"'},
+    )
 
 
 @api_router.post("/signals/analyze/{symbol}", response_model=SignalRecord)
