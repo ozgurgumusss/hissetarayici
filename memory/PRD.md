@@ -86,3 +86,14 @@
   - Kırılım hacmi > 20g ortalama *1.2 ise skor bonusu + “Hacim Onaylı Kırılım” notu
   - AI raporuna **Hacim Durumu** başlığı eklendi.
 
+## 8) Son Güncelleme (Excel Dışa Aktarma + Filtreleme)
+- Sinyal Akışı paneline sağ üstte **Verileri Dışa Aktar (Excel)** butonu eklendi.
+- Buton ile açılan modalda çoklu seçim filtreleri eklendi:
+  - Borsa: NASDAQ, BIST
+  - Sinyal Durumu: Güçlü Al / Al / Tut / Sat / Güçlü Sat
+- Backend `POST /api/signals/export/excel` endpoint’i eklendi (pandas + openpyxl).
+- Excel dosyası `sinyal_raporu.xlsx` adıyla indiriliyor ve şu kolonları içeriyor:
+  - Hisse Kodu, Mevcut Sinyal, Hedef Süresi, Take Profit, Stop Loss, Analiz Notu
+- Hedef süresi formasyon bazlı sabit aralıkla üretiliyor (ör. Double 5-10 Gün, Üçgen 7-14 Gün, Cup&Handle 15-30 Gün).
+- Analiz Notu alanı hacim onayı durumuna göre otomatik dolduruluyor.
+

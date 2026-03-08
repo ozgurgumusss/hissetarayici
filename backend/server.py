@@ -2109,8 +2109,8 @@ async def export_signals_excel(filters: ExportFilterRequest):
                 "Hisse Kodu": doc.get("symbol"),
                 "Mevcut Sinyal": signal_label(str(doc.get("action", ""))),
                 "Hedef Süresi": estimate_target_duration(doc.get("patterns", []), str(doc.get("action", ""))),
-                "Take Profit (Kâr Al)": (doc.get("risk") or {}).get("take_profit"),
-                "Stop Loss (Zarar Kes)": (doc.get("risk") or {}).get("stop_loss"),
+                "Take Profit": (doc.get("risk") or {}).get("take_profit"),
+                "Stop Loss": (doc.get("risk") or {}).get("stop_loss"),
                 "Analiz Notu": build_export_note(doc),
             }
         )
@@ -2119,8 +2119,8 @@ async def export_signals_excel(filters: ExportFilterRequest):
         "Hisse Kodu",
         "Mevcut Sinyal",
         "Hedef Süresi",
-        "Take Profit (Kâr Al)",
-        "Stop Loss (Zarar Kes)",
+        "Take Profit",
+        "Stop Loss",
         "Analiz Notu",
     ]
     dataframe = pd.DataFrame(rows, columns=columns)
