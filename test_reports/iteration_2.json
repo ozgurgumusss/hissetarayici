@@ -1,0 +1,56 @@
+{
+  "summary": "Backend API regression + UI/integration validation tamamlandı. Yeni modüllerin çoğu çalışıyor; ancak görselleştirme yönü ile sinyal aksiyonu arasında kritik çelişki bulundu.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "/api/signals/{symbol} + /api/signals/{symbol}/visualize",
+        "issue": "Bullish aksiyon (ör. GÜÇLÜ AL) için bearish onaylı formasyon görseli seçilebiliyor. Örnek: MACKO.IS => action=GÜÇLÜ AL, confirmed pattern=Head and Shoulders (bearish), pattern_image_url=head_and_shoulders.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Detail sheet pattern visualization",
+        "issue": "UI backend’den gelen çelişkili pattern_image_url değerini aynen gösteriyor; bullish karar ile bearish görsel birlikte gösterilebiliyor.",
+        "affected_selectors": [
+          "[data-testid=\"signal-detail-subtitle\"]",
+          "[data-testid=\"signal-detail-pattern-image\"]",
+          "[data-testid=\"signal-detail-image-preview-title\"]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_signal_platform_api.py",
+    "/app/backend/tests/test_sync_volume_features.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "select_visual_pattern içinde action yönüne ters pattern fallback’ini engelle (bullish aksiyonda bearish confirmed pattern’i seçme).",
+    "Görselleştirme öncesi action-pattern direction uyumluluk guard’ı ekle; uyumsuzsa image üretme ya da nötr mesaj dön.",
+    "Bu düzeltmeden sonra MACKO.IS benzeri örneklerde retest yap (detail subtitle vs image title consistency)."
+  ],
+  "critical_code_review_comments": [
+    "server.py tek dosyada 2000+ satır; tarama, pattern detection, AI summary ve route katmanları ayrıştırılmalı.",
+    "Yön uyumsuzluğu kök sebebi: select_visual_pattern fallback olarak confirmed[0] dönüyor; action yönü doğrulaması yok."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sync_volume_features.py",
+    "/app/backend/tests/test_signal_platform_api.py",
+    "/app/test_reports/iteration_2.json"
+  ],
+  "success_rate": {
+    "backend": "92%",
+    "frontend": "85%"
+  },
+  "seed_data_creation": "Yok",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pytest sonucu: 12 passed, 1 skipped. UI’da rebranding, lokal filtre, Detaylı Bak sekmesi, teknik+temel alanlar, AI Hacim Durumu doğrulandı. MACKO.IS üzerinde image controls ve modal çalışıyor; fakat aynı kayıtta action=GÜÇLÜ AL iken görsel bearish Head and Shoulders olarak geliyor (kritik uyumsuzluk).",
+  "rca of the issue": "RCA: backend select_visual_pattern(action, patterns) fonksiyonunda bullish/bearish öncelik listesi bulunuyor; fakat uygun yönde pattern bulunamazsa confirmed[0] fallback’i yapılıyor. Bu fallback yön kontrolü içermediğinden bullish aksiyonda bearish formasyon seçilip pattern_image_url üretiliyor. Reprodüksiyon: GET /api/signals/MACKO.IS -> action=GÜÇLÜ AL ve confirmed bearish Head and Shoulders; UI detail sheet aynı çelişkiyi gösteriyor. Mitigasyon: fallback’i direction-aware yap veya uyumsuz pattern’de görsel üretimini blokla."
+}

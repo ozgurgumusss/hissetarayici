@@ -138,6 +138,16 @@ class IndicatorsSnapshot(BaseModel):
     macd: float | None = None
     macd_signal: float | None = None
     atr14: float | None = None
+    bb_upper: float | None = None
+    bb_middle: float | None = None
+    bb_lower: float | None = None
+    stochastic_k: float | None = None
+    stochastic_d: float | None = None
+    adx14: float | None = None
+    ichimoku_tenkan: float | None = None
+    ichimoku_kijun: float | None = None
+    ichimoku_span_a: float | None = None
+    ichimoku_span_b: float | None = None
     golden_cross: bool = False
     death_cross: bool = False
     bearish_divergence: bool = False
@@ -155,6 +165,9 @@ class FundamentalSnapshot(BaseModel):
     current_ratio: float | None = None
     debt_to_equity: float | None = None
     eps_growth_qoq: float | None = None
+    roe: float | None = None
+    net_profit_margin: float | None = None
+    dividend_yield: float | None = None
     score: int = 0
     hard_cap_trigger: bool = False
     notes: list[str] = Field(default_factory=list)
@@ -199,6 +212,7 @@ class SignalRecord(BaseModel):
     indicators: IndicatorsSnapshot
     fundamental: FundamentalSnapshot
     risk: RiskLevels
+    volume_analysis: dict[str, Any] = Field(default_factory=dict)
     ai_summary: str | None = None
     pattern_image_url: str | None = None
     pattern_image_updated_at: str | None = None
@@ -843,6 +857,40 @@ def apply_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["macd_signal"] = macd_signal
     df["rsi14"] = talib.RSI(close, timeperiod=14)
     df["atr14"] = talib.ATR(high, low, close, timeperiod=14)
+
+    bb_upper, bb_middle, bb_lower = talib.BBANDS(close, timeperiod=20, nbdevup=2, nbdevdn=2, matype=0)
+    df["bb_upper"] = bb_upper
+    df["bb_middle"] = bb_middle
+    df["bb_lower"] = bb_lower
+
+    stoch_k, stoch_d = talib.STOCH(
+        high,
+        low,
+        close,
+        fastk_period=14,
+        slowk_period=3,
+        slowk_matype=0,
+        slowd_period=3,
+        slowd_matype=0,
+    )
+    df["stochastic_k"] = stoch_k
+    df["stochastic_d"] = stoch_d
+    df["adx14"] = talib.ADX(high, low, close, timeperiod=14)
+
+    high_series = pd.Series(high)
+    low_series = pd.Series(low)
+    close_series = pd.Series(close)
+    tenkan = (high_series.rolling(9).max() + low_series.rolling(9).min()) / 2
+    kijun = (high_series.rolling(26).max() + low_series.rolling(26).min()) / 2
+    span_a = ((tenkan + kijun) / 2).shift(26)
+    span_b = ((high_series.rolling(52).max() + low_series.rolling(52).min()) / 2).shift(26)
+    chikou = close_series.shift(-26)
+
+    df["ichimoku_tenkan"] = tenkan.to_numpy()
+    df["ichimoku_kijun"] = kijun.to_numpy()
+    df["ichimoku_span_a"] = span_a.to_numpy()
+    df["ichimoku_span_b"] = span_b.to_numpy()
+    df["ichimoku_chikou"] = chikou.to_numpy()
     return df
 
 
@@ -886,6 +934,77 @@ def build_price_history(df: pd.DataFrame) -> list[dict]:
             }
         )
     return history
+
+
+def build_volume_analysis(df: pd.DataFrame, confirmed_patterns: list[dict]) -> dict:
+    volume_series = df["Volume"].astype(float)
+    recent_avg_20 = float(volume_series.tail(20).mean()) if len(volume_series) >= 20 else float(volume_series.mean())
+    recent_avg_10 = float(volume_series.tail(10).mean()) if len(volume_series) >= 10 else float(volume_series.mean())
+    prev_avg_10 = (
+        float(volume_series.iloc[-20:-10].mean())
+        if len(volume_series) >= 20
+        else recent_avg_10
+    )
+
+    pct_change_10 = 0.0
+    if prev_avg_10 > 0:
+        pct_change_10 = ((recent_avg_10 - prev_avg_10) / prev_avg_10) * 100
+
+    breakout_ratio = 0.0
+    breakout_volume = None
+    breakout_avg_ref = recent_avg_20
+    volume_confirmed_breakout = False
+
+    for pattern in confirmed_patterns:
+        geometry = pattern.get("geometry", {})
+        breakout_idx = geometry.get("breakout_index")
+        if isinstance(breakout_idx, int) and 0 <= breakout_idx < len(volume_series):
+            breakout_volume = float(volume_series.iloc[breakout_idx])
+            reference = float(volume_series.iloc[max(0, breakout_idx - 20):breakout_idx].mean()) if breakout_idx > 0 else recent_avg_20
+            breakout_avg_ref = reference if reference > 0 else recent_avg_20
+            if breakout_avg_ref > 0:
+                breakout_ratio = breakout_volume / breakout_avg_ref
+                volume_confirmed_breakout = breakout_ratio >= 1.2
+            break
+
+    flow_label = "Para girişi"
+    if pct_change_10 < -1.0:
+        flow_label = "Para çıkışı"
+
+    status_word = "arttı" if pct_change_10 >= 0 else "azaldı"
+    abs_pct = round(abs(pct_change_10), 2)
+
+    return {
+        "avg_10": round(recent_avg_10, 2),
+        "avg_20": round(recent_avg_20, 2),
+        "prev_10": round(prev_avg_10, 2),
+        "breakout_volume": round(breakout_volume, 2) if breakout_volume is not None else None,
+        "breakout_reference_avg": round(breakout_avg_ref, 2) if breakout_avg_ref is not None else None,
+        "breakout_ratio": round(breakout_ratio, 4),
+        "volume_confirmed_breakout": volume_confirmed_breakout,
+        "breakout_note": "Hacim Onaylı Kırılım" if volume_confirmed_breakout else "Hacim Onayı Bekleniyor",
+        "change_10d_pct": round(pct_change_10, 2),
+        "human_text": f"Hacim son 10 gün ortalamasına göre %{abs_pct} {status_word}. {flow_label} sinyali destekliyor.",
+    }
+
+
+def enforce_directional_target(signal_doc: dict, target_price: float | None) -> float | None:
+    if target_price is None:
+        return None
+
+    action = str(signal_doc.get("action") or "")
+    last_price = to_float(signal_doc.get("last_price"))
+    atr = to_float((signal_doc.get("indicators") or {}).get("atr14"))
+    if last_price is None:
+        return target_price
+
+    if action in {"AL", "GÜÇLÜ AL"}:
+        min_target = last_price + (3.0 * atr if atr is not None else last_price * 0.01)
+        return max(target_price, min_target)
+    if action in {"SAT", "GÜÇLÜ SAT"}:
+        max_target = last_price - (3.0 * atr if atr is not None else last_price * 0.01)
+        return min(target_price, max_target)
+    return target_price
 
 
 def is_strong_action(action: str) -> bool:
@@ -1089,12 +1208,6 @@ def generate_pattern_image(signal_doc: dict, force: bool = False, require_strong
     elif pattern_name == "Symmetrical Triangle":
         add_line("upper_start_index", "upper_start_price", "upper_end_index", "upper_end_price", "#FF2D55")
         add_line("lower_start_index", "lower_start_price", "lower_end_index", "lower_end_price", "#00E096")
-    elif pattern_name == "Cup and Handle":
-        add_point("left_index", "left_price", "Sol Rim", "#38BDF8")
-        add_point("bottom_index", "bottom_price", "Cup Dip", "#F59E0B")
-        add_point("right_index", "right_price", "Sağ Rim", "#38BDF8")
-        add_point("handle_index", "handle_price", "Kulp", "#00E096")
-        add_line("neckline_start_index", "neckline_start_price", "neckline_end_index", "neckline_end_price", "#38BDF8")
         if breakout_x is not None:
             fig.add_annotation(
                 x=breakout_x,
@@ -1112,8 +1225,19 @@ def generate_pattern_image(signal_doc: dict, force: bool = False, require_strong
         add_point("right_index", "right_price", "Sağ Rim", "#38BDF8")
         add_point("handle_index", "handle_price", "Kulp", "#00E096")
         add_line("neckline_start_index", "neckline_start_price", "neckline_end_index", "neckline_end_price", "#38BDF8")
+        if breakout_x is not None:
+            fig.add_annotation(
+                x=breakout_x,
+                y=breakout_y,
+                text="Breakout",
+                showarrow=True,
+                arrowhead=2,
+                arrowcolor="#F59E0B",
+                font={"color": "#F59E0B", "size": 12},
+                bgcolor="rgba(9,9,11,0.8)",
+            )
 
-    target_price = to_float(geometry.get("target_price"))
+    target_price = enforce_directional_target(signal_doc, to_float(geometry.get("target_price")))
     if target_price is not None:
         target_x = breakout_x if breakout_x is not None else chart_window.index[-1]
         fig.add_trace(
@@ -1272,8 +1396,16 @@ def write_pattern_image_matplotlib(
     elif pattern_name == "Symmetrical Triangle":
         add_line("upper_start_index", "upper_start_price", "upper_end_index", "upper_end_price", "#FF2D55")
         add_line("lower_start_index", "lower_start_price", "lower_end_index", "lower_end_price", "#00E096")
+    elif pattern_name == "Cup and Handle":
+        add_point("left_index", "left_price", "Sol Rim", "#38BDF8")
+        add_point("bottom_index", "bottom_price", "Cup Dip", "#F59E0B")
+        add_point("right_index", "right_price", "Sağ Rim", "#38BDF8")
+        add_point("handle_index", "handle_price", "Kulp", "#00E096")
+        add_line("neckline_start_index", "neckline_start_price", "neckline_end_index", "neckline_end_price", "#38BDF8")
+        if breakout_x is not None:
+            ax.text(breakout_x, breakout_y, "Breakout", color="#F59E0B", fontsize=10, ha="left", va="top")
 
-    target_price = to_float(geometry.get("target_price"))
+    target_price = enforce_directional_target(signal_doc, to_float(geometry.get("target_price")))
     if target_price is not None:
         ax.axhline(y=target_price, color="#F59E0B", linestyle=":", linewidth=1.6)
         ref_x = breakout_x if breakout_x is not None else x_vals[-1]
@@ -1351,6 +1483,9 @@ def fetch_fundamentals(symbol: str) -> dict:
     debt_to_equity = to_float(info.get("debtToEquity"))
     eps_growth = to_float(info.get("earningsQuarterlyGrowth"))
     market_cap = to_float(fast_info.get("marketCap"))
+    roe = to_float(info.get("returnOnEquity"))
+    net_profit_margin = to_float(info.get("profitMargins"))
+    dividend_yield = to_float(info.get("dividendYield"))
     sector = str(info.get("sector") or "Unknown")
     sector_pe_avg = float(SECTOR_PE_BENCHMARK.get(sector, 22.0))
 
@@ -1396,15 +1531,18 @@ def fetch_fundamentals(symbol: str) -> dict:
         "current_ratio": to_round(current_ratio, 4),
         "debt_to_equity": to_round(debt_to_equity, 4),
         "eps_growth_qoq": to_round(eps_growth, 4),
+        "roe": to_round(roe, 4),
+        "net_profit_margin": to_round(net_profit_margin, 4),
+        "dividend_yield": to_round(dividend_yield, 4),
         "score": int(max(0, min(100, quality_score))),
         "hard_cap_trigger": hard_cap_trigger,
         "notes": notes,
     }
 
 
-async def get_fundamentals_with_cache(symbol: str) -> dict:
+async def get_fundamentals_with_cache(symbol: str, force_refresh: bool = False) -> dict:
     cached = await fundamentals_collection.find_one({"symbol": symbol}, {"_id": 0})
-    if cached and isinstance(cached.get("updated_at"), str):
+    if not force_refresh and cached and isinstance(cached.get("updated_at"), str):
         try:
             updated_at = datetime.fromisoformat(cached["updated_at"])
             if datetime.now(timezone.utc) - updated_at < timedelta(hours=24):
@@ -1431,6 +1569,9 @@ async def get_fundamentals_with_cache(symbol: str) -> dict:
             "current_ratio": None,
             "debt_to_equity": None,
             "eps_growth_qoq": None,
+            "roe": None,
+            "net_profit_margin": None,
+            "dividend_yield": None,
             "score": 0,
             "hard_cap_trigger": False,
             "notes": ["Temel veri alınamadı; puan nötr bırakıldı."],
@@ -1446,6 +1587,7 @@ def build_signal(symbol: str, market: str, raw_df: pd.DataFrame, fundamentals: d
     pattern_candidates.extend(detect_symmetrical_triangle(df, highs, lows))
     pattern_candidates.extend(detect_cup_handle(df, highs, lows))
     confirmed_patterns = [pattern for pattern in pattern_candidates if pattern["confirmed"]]
+    volume_analysis = build_volume_analysis(df, confirmed_patterns)
 
     latest = df.iloc[-1]
     prev = df.iloc[-2] if len(df) > 1 else latest
@@ -1504,13 +1646,18 @@ def build_signal(symbol: str, market: str, raw_df: pd.DataFrame, fundamentals: d
     technical_raw = int(max(0, min(100, technical_raw)))
 
     fundamental_raw = int(max(0, min(100, fundamentals.get("score", 0))))
-    volume_raw = 100 if volume_confirmation else 20
+    volume_raw = 70 if volume_confirmation else 20
+    if volume_analysis.get("volume_confirmed_breakout"):
+        volume_raw = 100
 
     technical_points = int(round(technical_raw * 0.40))
     fundamental_points = int(round(fundamental_raw * 0.30))
     volume_points = int(round(volume_raw * 0.30))
 
     bullish_score = int(max(0, min(100, technical_points + fundamental_points + volume_points)))
+
+    if volume_analysis.get("volume_confirmed_breakout"):
+        bullish_score = min(100, bullish_score + 8)
 
     if fundamentals.get("hard_cap_trigger"):
         bullish_score = min(bullish_score, 45)
@@ -1530,6 +1677,7 @@ def build_signal(symbol: str, market: str, raw_df: pd.DataFrame, fundamentals: d
             "raw_technical": technical_raw,
             "raw_fundamental": fundamental_raw,
             "raw_volume": volume_raw,
+            "volume_breakout_bonus": 8 if volume_analysis.get("volume_confirmed_breakout") else 0,
         },
         "last_price": round(close, 4),
         "patterns": pattern_candidates,
@@ -1541,6 +1689,16 @@ def build_signal(symbol: str, market: str, raw_df: pd.DataFrame, fundamentals: d
             "macd": to_round(latest.get("macd"), 4),
             "macd_signal": to_round(latest.get("macd_signal"), 4),
             "atr14": to_round(atr14, 4),
+            "bb_upper": to_round(latest.get("bb_upper"), 4),
+            "bb_middle": to_round(latest.get("bb_middle"), 4),
+            "bb_lower": to_round(latest.get("bb_lower"), 4),
+            "stochastic_k": to_round(latest.get("stochastic_k"), 4),
+            "stochastic_d": to_round(latest.get("stochastic_d"), 4),
+            "adx14": to_round(latest.get("adx14"), 4),
+            "ichimoku_tenkan": to_round(latest.get("ichimoku_tenkan"), 4),
+            "ichimoku_kijun": to_round(latest.get("ichimoku_kijun"), 4),
+            "ichimoku_span_a": to_round(latest.get("ichimoku_span_a"), 4),
+            "ichimoku_span_b": to_round(latest.get("ichimoku_span_b"), 4),
             "golden_cross": golden_cross,
             "death_cross": death_cross,
             "bearish_divergence": bearish_divergence,
@@ -1548,6 +1706,7 @@ def build_signal(symbol: str, market: str, raw_df: pd.DataFrame, fundamentals: d
         },
         "fundamental": fundamentals,
         "risk": risk,
+        "volume_analysis": volume_analysis,
         "updated_at": now_iso(),
         "price_history": build_price_history(df),
         "ai_summary": None,
@@ -1587,12 +1746,17 @@ async def resolve_symbol_and_market(symbol_input: str) -> tuple[str | None, str 
     return None, None, None
 
 
-async def analyze_and_store_symbol(symbol_input: str, include_ai_summary: bool = True, include_pattern_image: bool = True) -> dict:
+async def analyze_and_store_symbol(
+    symbol_input: str,
+    include_ai_summary: bool = True,
+    include_pattern_image: bool = True,
+    force_live_data: bool = False,
+) -> dict:
     symbol, market, raw_df = await resolve_symbol_and_market(symbol_input)
     if symbol is None or raw_df is None or market is None:
         raise HTTPException(status_code=404, detail="Sembol için veri bulunamadı")
 
-    fundamentals = await get_fundamentals_with_cache(symbol)
+    fundamentals = await get_fundamentals_with_cache(symbol, force_refresh=force_live_data)
     signal_doc = build_signal(symbol, market, raw_df, fundamentals)
 
     update_payload = signal_doc.copy()
@@ -1699,6 +1863,7 @@ def build_local_summary(signal_doc: dict) -> str:
     indicators = signal_doc.get("indicators", {})
     fundamentals = signal_doc.get("fundamental", {})
     risk = signal_doc.get("risk", {})
+    volume = signal_doc.get("volume_analysis", {})
     patterns = signal_doc.get("patterns", [])
     pattern_image_url = signal_doc.get("pattern_image_url")
     confirmed = [pattern["name"] for pattern in patterns if pattern.get("confirmed")]
@@ -1707,7 +1872,8 @@ def build_local_summary(signal_doc: dict) -> str:
     summary = (
         f"1. **Teknik Durum:** {pattern_text}. RSI: {indicators.get('rsi14')} ve MACD: {indicators.get('macd')} seviyelerinde.\n"
         f"2. **Temel Durum:** P/E={fundamentals.get('pe')}, P/B={fundamentals.get('pb')}, Cari Oran={fundamentals.get('current_ratio')}.\n"
-        f"3. **Aksiyon ve Risk:** {signal_doc.get('action')} sinyali. Giriş={risk.get('entry_price')}, Stop-Loss={risk.get('stop_loss')}, Take-Profit={risk.get('take_profit')}."
+        f"3. **Hacim Durumu:** {volume.get('human_text', 'Hacim analizi hesaplanamadı.')}\n"
+        f"4. **Aksiyon ve Risk:** {signal_doc.get('action')} sinyali. Giriş={risk.get('entry_price')}, Stop-Loss={risk.get('stop_loss')}, Take-Profit={risk.get('take_profit')}."
     )
     if pattern_image_url:
         summary += f"\n\nFormasyon görseli: {pattern_image_url}"
@@ -1719,11 +1885,12 @@ async def generate_ai_summary(signal_doc: dict) -> str:
         return build_local_summary(signal_doc)
 
     system_prompt = (
-        "Sen bir yatırım danışmanısın. Sana verilen ham skorları ve formasyonları analiz ederek 3 maddelik bir özet çıkar.\n"
+        "Sen bir yatırım danışmanısın. Sana verilen ham skorları ve formasyonları analiz ederek 4 maddelik bir özet çıkar.\n"
         "Format:\n"
         "1. **Teknik Durum:** (Örn: Fiyat 50 günlük ortalamasından sekti ve Çift Dip formasyonu onaylandı. RSI pozitif uyumsuzluk gösteriyor.)\n"
         "2. **Temel Durum:** (Örn: F/K oranı sektörünün %15 altında, son bilançoda net kar beklentileri aştı.)\n"
-        "3. **Aksiyon ve Risk:** (Örn: X fiyatından AL sinyali üretildi. Risk yönetimi için Y seviyesine Stop-Loss, Z seviyesine Take-Profit konulmalıdır.)"
+        "3. **Hacim Durumu:** (Örn: Hacim son 10 gün ortalamasına göre %18 arttı, para girişi sinyali destekliyor.)\n"
+        "4. **Aksiyon ve Risk:** (Örn: X fiyatından AL sinyali üretildi. Risk yönetimi için Y seviyesine Stop-Loss, Z seviyesine Take-Profit konulmalıdır.)"
     )
 
     payload = {
@@ -1734,6 +1901,7 @@ async def generate_ai_summary(signal_doc: dict) -> str:
         "patterns": signal_doc.get("patterns"),
         "indicators": signal_doc.get("indicators"),
         "fundamental": signal_doc.get("fundamental"),
+        "volume_analysis": signal_doc.get("volume_analysis"),
         "risk": signal_doc.get("risk"),
         "pattern_image_url": signal_doc.get("pattern_image_url"),
     }
@@ -1747,7 +1915,8 @@ async def generate_ai_summary(signal_doc: dict) -> str:
 
         user_message = UserMessage(
             text=(
-                "Aşağıdaki ham verileri analiz et ve sadece 3 maddelik formatta Türkçe yanıt üret. "
+                "Aşağıdaki ham verileri analiz et ve sadece 4 maddelik formatta Türkçe yanıt üret. "
+                "4 başlık dışına çıkma. "
                 "Eğer pattern_image_url doluysa yanıtın sonunda 'Formasyon Görseli: <url>' satırını ekle.\n"
                 f"Veri:\n{json.dumps(payload, ensure_ascii=False)}"
             )
@@ -1833,7 +2002,12 @@ async def get_signals(
 
 @api_router.post("/signals/analyze/{symbol}", response_model=SignalRecord)
 async def analyze_symbol_on_demand(symbol: str):
-    analyzed = await analyze_and_store_symbol(symbol, include_ai_summary=True, include_pattern_image=True)
+    analyzed = await analyze_and_store_symbol(
+        symbol,
+        include_ai_summary=True,
+        include_pattern_image=True,
+        force_live_data=True,
+    )
     return sanitize_for_json(analyzed)
 
 
@@ -1847,7 +2021,12 @@ async def get_signal_detail(symbol: str):
 
 @api_router.post("/signals/{symbol}/reanalyze", response_model=SignalRecord)
 async def reanalyze_signal(symbol: str):
-    analyzed = await analyze_and_store_symbol(symbol, include_ai_summary=True, include_pattern_image=True)
+    analyzed = await analyze_and_store_symbol(
+        symbol,
+        include_ai_summary=True,
+        include_pattern_image=True,
+        force_live_data=True,
+    )
     return sanitize_for_json(analyzed)
 
 

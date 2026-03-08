@@ -31,10 +31,10 @@ export const DashboardControls = ({
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div data-testid="dashboard-header-info">
             <h1 className="font-heading text-3xl font-black tracking-tight text-foreground" data-testid="dashboard-main-title">
-              Algorithmic Signal Matrix
+              Hisse Tarayıcı
             </h1>
             <p className="mt-1 text-sm text-muted-foreground" data-testid="dashboard-main-subtitle">
-              US + BIST günlük tarama, formasyon kırılımları ve açıklanabilir AI raporu
+              Nasdaq ve BIST hisseleri için günlük tarama, formasyon kırılımı ve açıklanabilir AI raporu sunan profesyonel analiz terminali.
             </p>
           </div>
 

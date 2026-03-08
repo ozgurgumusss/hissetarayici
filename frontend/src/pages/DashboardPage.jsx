@@ -13,6 +13,7 @@ import {
   fetchScannerState,
   fetchSignalDetail,
   fetchSignals,
+  generateSignalVisualization,
   reanalyzeSignal,
   runScanner,
 } from "@/services/signalApi";
@@ -182,6 +183,20 @@ export default function DashboardPage() {
     }
   };
 
+  const handleRegenerateImage = async (symbol) => {
+    setExplaining(true);
+    try {
+      await generateSignalVisualization(symbol);
+      await loadSignalDetail(symbol);
+      toast.success(`${symbol} görseli yeniden oluşturuldu.`);
+    } catch (error) {
+      console.error(error);
+      toast.error("Formasyon görseli yeniden oluşturulamadı.");
+    } finally {
+      setExplaining(false);
+    }
+  };
+
   useEffect(() => {
     const initialize = async () => {
       try {
@@ -271,6 +286,7 @@ export default function DashboardPage() {
         onOpenChange={setIsDetailOpen}
         onExplain={handleExplain}
         onReanalyze={handleReanalyze}
+        onRegenerateImage={handleRegenerateImage}
       />
 
       <footer

@@ -1,6 +1,8 @@
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const ACTION_CLASS_MAP = {
   "GÜÇLÜ AL": "border-primary/40 bg-primary/20 text-primary",
@@ -13,12 +15,31 @@ const ACTION_CLASS_MAP = {
 const toTestId = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export const SignalStream = ({ signals, selectedSymbol, onSelect, loading }) => {
+  const [localQuery, setLocalQuery] = useState("");
+
+  const filteredSignals = useMemo(() => {
+    const query = localQuery.trim().toUpperCase();
+    if (!query) {
+      return signals;
+    }
+    return signals.filter((signal) => signal.symbol.toUpperCase().includes(query));
+  }, [signals, localQuery]);
+
   return (
     <Card className="h-full border-border/70 bg-card/45 backdrop-blur-md" data-testid="signal-stream-card">
       <CardHeader className="border-b border-border/60 p-4">
-        <CardTitle className="text-lg font-bold" data-testid="signal-stream-title">
-          Sinyal Akışı
-        </CardTitle>
+        <div className="space-y-2">
+          <CardTitle className="text-lg font-bold" data-testid="signal-stream-title">
+            Sinyal Akışı
+          </CardTitle>
+          <Input
+            value={localQuery}
+            onChange={(event) => setLocalQuery(event.target.value)}
+            placeholder="Liste içi filtrele / ara"
+            className="h-8 rounded-sm border-border bg-input/60 font-mono text-xs"
+            data-testid="signal-stream-local-filter-input"
+          />
+        </div>
       </CardHeader>
       <CardContent className="h-[calc(100vh-20rem)] overflow-y-auto p-2" data-testid="signal-stream-list-wrapper">
         {loading ? (
@@ -31,13 +52,13 @@ export const SignalStream = ({ signals, selectedSymbol, onSelect, loading }) => 
               />
             ))}
           </div>
-        ) : signals.length === 0 ? (
+        ) : filteredSignals.length === 0 ? (
           <div className="p-4 text-sm text-muted-foreground" data-testid="signal-stream-empty-state">
             Filtreye uyan hisse bulunamadı.
           </div>
         ) : (
           <div className="space-y-2" data-testid="signal-stream-items">
-            {signals.map((signal) => {
+            {filteredSignals.map((signal) => {
               const isActive = selectedSymbol === signal.symbol;
               const actionClass = ACTION_CLASS_MAP[signal.action] || "border-border bg-muted text-foreground";
               return (

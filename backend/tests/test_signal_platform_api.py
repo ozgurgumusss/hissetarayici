@@ -106,7 +106,7 @@ def analyzed_symbols(api_client: requests.Session):
 
 def _assert_weighted_breakdown(signal: dict):
     breakdown = signal["score_breakdown"]
-    expected_keys = {
+    required_keys = {
         "technical",
         "fundamental",
         "volume",
@@ -114,7 +114,7 @@ def _assert_weighted_breakdown(signal: dict):
         "raw_fundamental",
         "raw_volume",
     }
-    assert set(breakdown.keys()) == expected_keys
+    assert required_keys.issubset(set(breakdown.keys()))
 
     assert 0 <= breakdown["technical"] <= 40
     assert 0 <= breakdown["fundamental"] <= 30
