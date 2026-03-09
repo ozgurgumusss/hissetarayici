@@ -2177,14 +2177,30 @@ async def get_signal_detail(symbol: str):
 
 @api_router.post("/signals/{symbol}/reanalyze", response_model=SignalRecord)
 async def reanalyze_signal(symbol: str):
-    analyzed = await analyze_and_store_symbol(
-        symbol,
-        include_ai_summary=True,
-        include_pattern_image=True,
-        force_live_data=False,
-        prefer_stream_consistency=True,
-    )
-    return sanitize_for_json(analyzed)
+    document = await fetch_signal_document(symbol)
+    if not document:
+        analyzed = await analyze_and_store_symbol(
+            symbol,
+            include_ai_summary=True,
+            include_pattern_image=True,
+            force_live_data=False,
+            prefer_stream_consistency=True,
+        )
+        return sanitize_for_json(analyzed)
+
+    image_url = await ensure_pattern_visualization(document, force=False, require_strong=False)
+    update_payload: dict[str, Any] = {
+        "reanalyzed_at": now_iso(),
+    }
+    if image_url != document.get("pattern_image_url"):
+        update_payload["pattern_image_url"] = image_url
+        update_payload["pattern_image_updated_at"] = now_iso()
+
+    if update_payload:
+        await signals_collection.update_one({"symbol": document["symbol"]}, {"$set": update_payload})
+
+    refreshed = await fetch_signal_document(document["symbol"])
+    return sanitize_for_json(refreshed or document)
 
 
 @api_router.post("/signals/{symbol}/visualize")
