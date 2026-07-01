@@ -41,6 +41,21 @@ class SahteTalib:
 # Koddaki 'talib' çağrılarını bu sahte sınıfa yönlendiriyoruz
 talib = SahteTalib()
 # =====================================================================
+# =====================================================================
+# EMERGENTINTEGRATIONS HATASINI BİTİREN KÖKTEN ÇÖZÜM
+# =====================================================================
+import sys
+from types import ModuleType
+
+# Sahte ana modül
+mock_emergent = ModuleType("emergentintegrations")
+sys.modules["emergentintegrations"] = mock_emergent
+
+# Kodda alt kırılımlar çağrıldıysa patlamasın diye sahte alt modüller
+sys.modules["emergentintegrations.knowledge"] = ModuleType("knowledge")
+sys.modules["emergentintegrations.prompts"] = ModuleType("prompts")
+sys.modules["emergentintegrations.tools"] = ModuleType("tools")
+# =====================================================================
 import yfinance as yf
 from yfinance import EquityQuery
 from dotenv import load_dotenv
