@@ -57,6 +57,8 @@ sys.modules["emergentintegrations.prompts"] = ModuleType("prompts")
 sys.modules["emergentintegrations.tools"] = ModuleType("tools")
 # =====================================================================
 import yfinance as yf
+import yfinance as yf
+yf.set_tz_cache_false()  # Önbellek kilitlenmesini engellemek için ilk önlem
 from yfinance import EquityQuery
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Query
@@ -1539,7 +1541,13 @@ def fetch_symbol_ohlcv(symbol: str) -> pd.DataFrame | None:
         auto_adjust=False,
         progress=False,
         threads=False,
+        ignore_tz=True,  # İŞTE O KİLİDİ KIRAN ALTIN PARAMETRE!
     )
+    
+    if history is None or history.empty:
+        return None
+        
+    return history
     if history is None or history.empty:
         return None
 
