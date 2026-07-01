@@ -18,7 +18,29 @@ from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-import talib
+# =====================================================================
+# TA-LIB YERİNE SUNUCUDA ÇALIŞAN UYUMLULUK KÖPRÜSÜ
+# =====================================================================
+import ta as ta_lib
+import pandas as pd
+import numpy as np
+
+class SahteTalib:
+    @staticmethod
+    def RSI(close_prices, timeperiod=14):
+        return ta_lib.momentum.rsi(pd.Series(close_prices), window=timeperiod).to_numpy()
+        
+    @staticmethod
+    def SMA(close_prices, timeperiod=30):
+        return ta_lib.trend.sma_indicator(pd.Series(close_prices), window=timeperiod).to_numpy()
+        
+    @staticmethod
+    def EMA(close_prices, timeperiod=30):
+        return ta_lib.trend.ema_indicator(pd.Series(close_prices), window=timeperiod).to_numpy()
+
+# Koddaki 'talib' çağrılarını bu sahte sınıfa yönlendiriyoruz
+talib = SahteTalib()
+# =====================================================================
 import yfinance as yf
 from yfinance import EquityQuery
 from dotenv import load_dotenv
