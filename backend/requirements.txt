@@ -13,3 +13,4 @@ pymongo
 motor
 flask-cors
 matplotlib
+plotly
