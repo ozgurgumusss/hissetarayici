@@ -57,8 +57,8 @@ sys.modules["emergentintegrations.prompts"] = ModuleType("prompts")
 sys.modules["emergentintegrations.tools"] = ModuleType("tools")
 # =====================================================================
 import yfinance as yf
-import yfinance as yf
-yf.set_tz_cache_false()  # Önbellek kilitlenmesini engellemek için ilk önlem
+# Eski hatalı satırı sil, yerine bunu yapıştır:
+yf.set_tz_cache_location(None)
 from yfinance import EquityQuery
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, HTTPException, Query
