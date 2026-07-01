@@ -59,7 +59,6 @@ sys.modules["emergentintegrations.tools"] = ModuleType("tools")
 import yfinance as yf
 from yfinance import EquityQuery
 from dotenv import load_dotenv
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
